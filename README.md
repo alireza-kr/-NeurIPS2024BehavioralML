@@ -1,4 +1,4 @@
-# NeurIPS 2024 ([Behavioral ML](https://sites.google.com/view/behavioralml/))
+# CORnet On Numbers
 
 Links to download the model weights:
 - [[Link]](https://osf.io/download/qdres/) CORnet-Z trained on DeWind dataset
@@ -12,3 +12,7 @@ Links to download the results: [[Link](https://drive.google.com/drive/folders/1b
 Important scripts:
 - **feature_selection.py**: run the pruning procedure
 - **numersority_units.py**: run the ANOVA procedure
+
+Relevant Conference:
+- NeurIPS 2024 ([Behavioral ML](https://sites.google.com/view/behavioralml/))
+- [ICLR 2025](https://iclr.cc/) 
