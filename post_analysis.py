@@ -65,38 +65,65 @@ def plot_res(data, model_name):
     plt.savefig(f'./res/figures/{model_name}_rsa.png')
 
 
-def read_selection_res():
+def read_selection_res(model = 'CORnet-Z', dataset = 'ImageNet'):
+    print(f'Model {model}, trained on {dataset} dataset')
+
     # read the result
     network_layers = ['V1', 'V2', 'V4', 'IT']
-    model = 'CORnet-S'
-    dataset = 'DeWind'
     # brain_area = 'IPS345'
     # rdm_human = loadmat('./data/MRI-RDM.mat', simplify_cells=True)['RDM'][brain_area]
-    brain_area = 'behavior'
+    human_data = 'behavior'
     rdm_human = loadmat('./data/Number.mat', simplify_cells=True)['Number']
     rdm_human_trim = upper_tri(rdm_human)
+    rdm_glove = np.load('./data/rdm_glove.npy')
+    rdm_glove_trim = upper_tri(rdm_glove)
 
     for layer in network_layers:
-        res = loadmat(f'./res/selection/forward/{brain_area}/{model}/{dataset}/{layer}.mat')
+        # Load pruning results (score Pruning with Human RDM)
+        print(f'\n--- Layer {layer} ---')
+        res = loadmat(f'./res/selection/forward/{human_data}/{model}/{dataset}/{layer}.mat')
         score_deviation = res['score_full'] - res['score_each_node']
-        rank_deviation = np.argsort(score_deviation)[::-1] # sort from highest to lowest
+        rank_deviation = np.argsort(score_deviation[0])[::-1] # sort from highest to lowest
         max_position = np.argmax(res['score_sfs'])
-        selected_nodes = rank_deviation[0][:max_position+1]
-        print(layer, len(rank_deviation[0]), round(res['score_full'][0][0], 2),
+        selected_nodes = rank_deviation[:max_position+1]
+        print('[Pruning] Full features - RSA Full - Retained features - RSA Retained')
+        print(len(rank_deviation), round(res['score_full'][0][0], 2),
               len(selected_nodes), round(np.max(res['score_sfs']), 2))
 
+        # Load full activations
+        acts = np.load(f'./data/{model}/{dataset}/{layer}.npy')
+        acts_avg = np.array([np.mean(acts[i:i + 100], axis=0) for i in range(0, 3200, 100)])
+        rdm_acts = 1 - np.array(np.corrcoef(acts_avg))
+        rdm_acts_trim = upper_tri(rdm_acts)
+
+        # Score Pruning with Glove RDM
+        score_glove_full = pearsonr(rdm_glove_trim, rdm_acts_trim)[0]
+        acts_pruning = acts_avg[:, selected_nodes]
+        rdm_acts_pruning = 1 - np.array(np.corrcoef(acts_pruning))
+        rdm_acts_trim_pruning = upper_tri(rdm_acts_pruning)
+        score_glove_pruning = pearsonr(rdm_glove_trim, rdm_acts_trim_pruning)[0]
+        print('[Pruning] RSA Full Glove - RSA Retained Glove')
+        print(round(score_glove_full, 2), round(score_glove_pruning, 2))
+
+        # Load ANOVA units
         num_unit = np.load(f'./res/num_unit/{model}/{dataset}/{layer}.npy')
         if len(num_unit) > 0:
-            acts = np.load(f'./data/{model}/{dataset}/{layer}.npy')
-            acts_avg = np.array([np.mean(acts[i:i + 100], axis=0) for i in range(0, 3200, 100)])
-            pruned_acts = acts_avg[:, num_unit]
-            rdm_acts = 1 - np.array(np.corrcoef(pruned_acts))
-            rdm_acts_trim = upper_tri(rdm_acts)
-            score = pearsonr(rdm_human_trim, rdm_acts_trim)[0]
             overlap = len(set(selected_nodes).intersection(set(num_unit))) / min(len(selected_nodes), len(num_unit))
-            print(len(num_unit), round(score, 2), round(overlap, 2))
         else:
-            print(len(num_unit))
+            overlap = np.nan
+
+        if len(num_unit) > 1:
+            acts_anova = acts_avg[:, num_unit]
+            rdm_acts_anova = 1 - np.array(np.corrcoef(acts_anova))
+            rdm_acts_anova_trim = upper_tri(rdm_acts_anova)
+            score_anova_human = pearsonr(rdm_human_trim, rdm_acts_anova_trim)[0]
+            score_anova_glove = pearsonr(rdm_glove_trim, rdm_acts_anova_trim)[0]
+        else:
+            score_anova_human = np.nan
+            score_anova_glove = np.nan
+        print('[ANOVA] ANOVA features - RSA ANOVA Human RDM - RSA ANOVA Glove RDM - Overlap Pruning-ANOVA')
+        print(len(num_unit), round(score_anova_human, 2), round(score_anova_glove, 2), round(overlap, 2))
+
 
 
 if __name__ == '__main__':
@@ -105,7 +132,12 @@ if __name__ == '__main__':
     #                           [[0.28, 0.5, 0.19], [0.33, 0.52, np.nan], [0.32, 0.53, 0.11], [0.31, 0.5,0.01]]])
     # plot_res(data=cornet_z_data, model_name='CORnet-Z')
 
-    cornet_s_data = np.array([[[0.24, 0.71, 0.56], [0.24, 0.78, 0.74], [0.37, 0.82, 0.79], [0.29, 0.84, 0.72]],
-                              [[0.42, 0.59, 0.71], [0.35, 0.51, 0.63], [0.26, 0.45, 0.44], [0.36, 0.68, np.nan]],
-                              [[0.21, 0.63, 0.01], [0.11, 0.68, 0.41], [0.03, 0.73, 0.45], [0.03, 0.75, 0.7]]])
-    plot_res(data=cornet_s_data, model_name='CORnet-S')
+    # cornet_s_data = np.array([[[0.24, 0.71, 0.56], [0.24, 0.78, 0.74], [0.37, 0.82, 0.79], [0.29, 0.84, 0.72]],
+    #                           [[0.42, 0.59, 0.71], [0.35, 0.51, 0.63], [0.26, 0.45, 0.44], [0.36, 0.68, np.nan]],
+    #                           [[0.21, 0.63, 0.01], [0.11, 0.68, 0.41], [0.03, 0.73, 0.45], [0.03, 0.75, 0.7]]])
+    # plot_res(data=cornet_s_data, model_name='CORnet-S')
+
+    #
+    model = 'CORnet-Z' # CORnet-Z CORnet-S
+    dataset = 'ImageNet' # ImageNet DeWind Untrained
+    read_selection_res(model=model, dataset=dataset)
