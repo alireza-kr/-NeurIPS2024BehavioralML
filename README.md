@@ -15,4 +15,3 @@ Important scripts:
 
 Relevant Conference:
 - NeurIPS 2024 ([Behavioral ML](https://sites.google.com/view/behavioralml/))
-- [ICLR 2025](https://iclr.cc/) 
